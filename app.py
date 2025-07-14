@@ -17,66 +17,46 @@ client = OpenAI(api_key=openai_api_key)
 # --- App setup ---
 app = Flask(__name__)
 
-# --- Load data ---
-print("Loading data...")
+# --- Load both FAISS indexes and metadata ---
+print("Loading both indexes...")
+
+indexes = {
+    "volume1": {
+        "index": faiss.read_index("faiss_partb/index.faiss"),
+        "metadata": pickle.load(open("faiss_partb/part_metadata.pkl", "rb")),
+        "chunks": json.load(open("PartB_chunks.json", "r"))
+    },
+    "volume2": {
+        "index": faiss.read_index("faiss_partb_volume2/index.faiss"),
+        "metadata": pickle.load(open("faiss_partb_volume2/part_metadata.pkl", "rb")),
+        "chunks": json.load(open("PartB_volume2_chunks.json", "r"))
+    }
+}
 model = SentenceTransformer("all-MiniLM-L6-v2")
-
-# Volume 1
-index_v1 = faiss.read_index("partb_index.faiss")
-with open("partb_metadata.pkl", "rb") as f:
-    metadata_v1 = pickle.load(f)
-with open("PartB_chunks.json", "r") as f:
-    data_v1 = json.load(f)
-
-# Volume 2
-index_v2 = faiss.read_index("faiss_partb_volume2/index.faiss")
-with open("faiss_partb_volume2/index.pkl", "rb") as f:
-    metadata_v2 = pickle.load(f)
-with open("partb_volume2_chunks.json", "r") as f:
-    data_v2 = json.load(f)
-
-print("Data loaded.")
+print("Both indexes loaded.")
 
 # --- Core functions ---
-def query_index(question, volume="volume1", top_k=5):
+def query_index(question, building_type="volume1", top_k=5):
     q_embedding = model.encode([question])
-    
-    if volume == "volume2":
-        D, I = index_v2.search(np.array(q_embedding), top_k)
-        results = []
-        for i in I[0]:
-            entry = metadata_v2[i]
-            results.append({
-                "section": entry.get("section", ""),
-                "heading": entry.get("heading", ""),
-                "text": data_v2[i]["content"]
-            })
-        return results
-    else:
-        D, I = index_v1.search(np.array(q_embedding), top_k)
-        results = []
-        for i in I[0]:
-            entry = metadata_v1[i]
-            results.append({
-                "section": entry.get("section", ""),
-                "heading": entry.get("heading", ""),
-                "text": data_v1[i]["text"]
-            })
-        return results
+    index_data = indexes[building_type]
+    D, I = index_data["index"].search(np.array(q_embedding), top_k)
+    results = []
+    for i in I[0]:
+        entry = index_data["metadata"][i]
+        results.append({
+            "section": entry["section"],
+            "heading": entry["heading"],
+            "text": index_data["chunks"][i]["text"]
+        })
+    return results
 
-def generate_answer(question, context_chunks, conversation_history=None, volume="volume1"):
-    # Update system prompt depending on document
-    if volume == "volume2":
-        doc_type = "Approved Document B Volume 2 (Fire Safety – Buildings other than dwellinghouses)"
-    else:
-        doc_type = "Approved Document B Volume 1 (Fire Safety – Dwellings)"
-
+def generate_answer(question, context_chunks, conversation_history=None):
     context = "\n\n---\n\n".join(
         [f"Section {c['section']} - {c['heading']}\n{c['text']}" for c in context_chunks]
     )
 
-    system_prompt = f"""
-You are an assistant trained to answer questions using UK Building Regulations, specifically {doc_type}.
+    system_prompt = """
+You are an assistant trained to answer questions using UK Building Regulations, specifically Approved Document B (Fire Safety).
 
 Use the provided context ONLY.
 
@@ -97,9 +77,11 @@ Otherwise, respond in this structured format:
 
     messages = [{"role": "system", "content": system_prompt}]
     
+    # Add conversation history if present
     if conversation_history:
         messages.extend(conversation_history)
 
+    # Add current user input
     messages.append({"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}"})
 
     response = client.chat.completions.create(
@@ -121,13 +103,15 @@ def query():
         data_in = request.get_json()
         question = data_in.get("question")
         history = data_in.get("history", [])
-        building_type = data_in.get("building_type", "volume1").lower()
+        building_type = data_in.get("building_type", "volume1")
 
         if not question:
             return jsonify({"error": "No question provided"}), 400
+        if building_type not in indexes:
+            return jsonify({"error": f"Unknown building type: {building_type}"}), 400
 
-        chunks = query_index(question, volume=building_type)
-        answer = generate_answer(question, chunks, conversation_history=history, volume=building_type)
+        top_chunks = query_index(question, building_type=building_type)
+        answer = generate_answer(question, top_chunks, conversation_history=history)
 
         is_clarify = answer.strip().startswith("[[CLARIFY]]")
         return jsonify({"answer": answer, "clarify": is_clarify})
