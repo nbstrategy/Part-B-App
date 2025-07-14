@@ -81,8 +81,8 @@
     <h1>Part B Fire Safety Assistant</h1>
 
     <div class="radio-group">
-        <label><input type="radio" name="building-type" value="volume1" checked> Dwellinghouse (Volume 1)</label>
-        <label><input type="radio" name="building-type" value="volume2"> Other Building (Volume 2)</label>
+        <label><input type="radio" name="volume" value="1" checked> Dwellinghouse (Volume 1)</label>
+        <label><input type="radio" name="volume" value="2"> Other Building (Volume 2)</label>
     </div>
 
     <textarea id="question" placeholder="Ask a fire safety question..."></textarea>
@@ -103,12 +103,12 @@
     <script>
         let conversationHistory = [];
 
-        function getSelectedBuildingType() {
-            const radios = document.getElementsByName("building-type");
+        function getSelectedVolume() {
+            const radios = document.getElementsByName("volume");
             for (let i = 0; i < radios.length; i++) {
                 if (radios[i].checked) return radios[i].value;
             }
-            return "volume1"; // default fallback
+            return "1"; // default fallback
         }
 
         function showLoadingDots(targetEl) {
@@ -122,7 +122,7 @@
         async function sendQuery(question, isClarification = false) {
             const answerDiv = document.getElementById("answer");
             const clarifyPrompt = document.getElementById("clarifyPrompt");
-            const buildingType = getSelectedBuildingType();
+            const volume = getSelectedVolume();
 
             answerDiv.innerHTML = "";
             clarifyPrompt.classList.add("hidden");
@@ -138,7 +138,7 @@
                     body: JSON.stringify({
                         question: question,
                         history: conversationHistory,
-                        building_type: buildingType
+                        volume: volume
                     })
                 });
 

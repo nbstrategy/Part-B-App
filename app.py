@@ -19,35 +19,64 @@ app = Flask(__name__)
 
 # --- Load data ---
 print("Loading data...")
-index = faiss.read_index("partb_index.faiss")
-with open("partb_metadata.pkl", "rb") as f:
-    metadata = pickle.load(f)
-with open("PartB_chunks.json", "r") as f:
-    data = json.load(f)
 model = SentenceTransformer("all-MiniLM-L6-v2")
+
+# Volume 1
+index_v1 = faiss.read_index("partb_index.faiss")
+with open("partb_metadata.pkl", "rb") as f:
+    metadata_v1 = pickle.load(f)
+with open("PartB_chunks.json", "r") as f:
+    data_v1 = json.load(f)
+
+# Volume 2
+index_v2 = faiss.read_index("faiss_partb_volume2/index.faiss")
+with open("faiss_partb_volume2/index.pkl", "rb") as f:
+    metadata_v2 = pickle.load(f)
+with open("partb_volume2_chunks.json", "r") as f:
+    data_v2 = json.load(f)
+
 print("Data loaded.")
 
 # --- Core functions ---
-def query_index(question, top_k=5):
+def query_index(question, volume="volume1", top_k=5):
     q_embedding = model.encode([question])
-    D, I = index.search(np.array(q_embedding), top_k)
-    results = []
-    for i in I[0]:
-        entry = metadata[i]
-        results.append({
-            "section": entry["section"],
-            "heading": entry["heading"],
-            "text": data[i]["text"]
-        })
-    return results
+    
+    if volume == "volume2":
+        D, I = index_v2.search(np.array(q_embedding), top_k)
+        results = []
+        for i in I[0]:
+            entry = metadata_v2[i]
+            results.append({
+                "section": entry.get("section", ""),
+                "heading": entry.get("heading", ""),
+                "text": data_v2[i]["content"]
+            })
+        return results
+    else:
+        D, I = index_v1.search(np.array(q_embedding), top_k)
+        results = []
+        for i in I[0]:
+            entry = metadata_v1[i]
+            results.append({
+                "section": entry.get("section", ""),
+                "heading": entry.get("heading", ""),
+                "text": data_v1[i]["text"]
+            })
+        return results
 
-def generate_answer(question, context_chunks, conversation_history=None):
+def generate_answer(question, context_chunks, conversation_history=None, volume="volume1"):
+    # Update system prompt depending on document
+    if volume == "volume2":
+        doc_type = "Approved Document B Volume 2 (Fire Safety – Buildings other than dwellinghouses)"
+    else:
+        doc_type = "Approved Document B Volume 1 (Fire Safety – Dwellings)"
+
     context = "\n\n---\n\n".join(
         [f"Section {c['section']} - {c['heading']}\n{c['text']}" for c in context_chunks]
     )
 
-    system_prompt = """
-You are an assistant trained to answer questions using UK Building Regulations, specifically Approved Document B Volume 1 (Fire Safety – Dwellings).
+    system_prompt = f"""
+You are an assistant trained to answer questions using UK Building Regulations, specifically {doc_type}.
 
 Use the provided context ONLY.
 
@@ -68,11 +97,9 @@ Otherwise, respond in this structured format:
 
     messages = [{"role": "system", "content": system_prompt}]
     
-    # Add conversation history if present
     if conversation_history:
         messages.extend(conversation_history)
 
-    # Add current user input
     messages.append({"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{question}"})
 
     response = client.chat.completions.create(
@@ -94,12 +121,13 @@ def query():
         data_in = request.get_json()
         question = data_in.get("question")
         history = data_in.get("history", [])
+        building_type = data_in.get("building_type", "volume1").lower()
 
         if not question:
             return jsonify({"error": "No question provided"}), 400
 
-        top_chunks = query_index(question)
-        answer = generate_answer(question, top_chunks, conversation_history=history)
+        chunks = query_index(question, volume=building_type)
+        answer = generate_answer(question, chunks, conversation_history=history, volume=building_type)
 
         is_clarify = answer.strip().startswith("[[CLARIFY]]")
         return jsonify({"answer": answer, "clarify": is_clarify})
@@ -110,4 +138,3 @@ def query():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
