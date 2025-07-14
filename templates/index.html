@@ -21,6 +21,17 @@
             height: 80px;
             padding: 10px;
             font-size: 16px;
+            margin-top: 10px;
+        }
+
+        .radio-group {
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+
+        .radio-group label {
+            margin-right: 20px;
+            font-size: 16px;
         }
 
         button {
@@ -69,6 +80,11 @@
 <body>
     <h1>Part B Fire Safety Assistant</h1>
 
+    <div class="radio-group">
+        <label><input type="radio" name="building-type" value="volume1" checked> Dwellinghouse (Volume 1)</label>
+        <label><input type="radio" name="building-type" value="volume2"> Other Building (Volume 2)</label>
+    </div>
+
     <textarea id="question" placeholder="Ask a fire safety question..."></textarea>
     <br>
     <button id="submitBtn">Submit</button>
@@ -82,11 +98,18 @@
         <button id="clarifyBtn">Submit Clarification</button>
     </div>
 
-    <!-- Logo -->
     <img id="logo" src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
 
     <script>
         let conversationHistory = [];
+
+        function getSelectedBuildingType() {
+            const radios = document.getElementsByName("building-type");
+            for (let i = 0; i < radios.length; i++) {
+                if (radios[i].checked) return radios[i].value;
+            }
+            return "volume1"; // default fallback
+        }
 
         function showLoadingDots(targetEl) {
             let dots = 0;
@@ -99,6 +122,7 @@
         async function sendQuery(question, isClarification = false) {
             const answerDiv = document.getElementById("answer");
             const clarifyPrompt = document.getElementById("clarifyPrompt");
+            const buildingType = getSelectedBuildingType();
 
             answerDiv.innerHTML = "";
             clarifyPrompt.classList.add("hidden");
@@ -113,7 +137,8 @@
                     },
                     body: JSON.stringify({
                         question: question,
-                        history: conversationHistory
+                        history: conversationHistory,
+                        building_type: buildingType
                     })
                 });
 
@@ -162,9 +187,10 @@
             }
         });
     </script>
+
     <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.85em; color: #666; background: #f9f9f9; padding: 6px 10px; border-radius: 5px; box-shadow: 0 0 4px rgba(0,0,0,0.1);">
-        v1.0 — Feedback? <a href="mailto:nathan@nbstrategy.co.uk">Email Nathan</a>
+        v1.1 — Feedback? <a href="mailto:nathan@nbstrategy.co.uk">Email Nathan</a>
     </div>
-    
+
 </body>
 </html>
