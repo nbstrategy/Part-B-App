@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Part B Fire Safety Assistant</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px auto;
+            max-width: 800px;
+            padding: 0 20px;
+            background-color: #f7f7f7;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        textarea {
+            width: 100%;
+            height: 80px;
+            padding: 10px;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        .radio-group {
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+
+        .radio-group label {
+            margin-right: 20px;
+            font-size: 16px;
+        }
+
+        button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #answer {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            border: 1px solid #ccc;
+            margin-top: 20px;
+        }
+
+        .loading {
+            font-style: italic;
+            color: #777;
+        }
+
+        #clarifyPrompt {
+            margin-top: 20px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        #logo {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            width: 100px;
+            opacity: 0.8;
+        }
+
+        #logo:hover {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Part B Fire Safety Assistant</h1>
+
+    <div class="radio-group">
+        <label><input type="radio" name="volume" value="1" checked> Dwellinghouse (Volume 1)</label>
+        <label><input type="radio" name="volume" value="2"> Other Building (Volume 2)</label>
+    </div>
+
+    <textarea id="question" placeholder="Ask a fire safety question..."></textarea>
+    <br>
+    <button id="submitBtn">Submit</button>
+
+    <div id="answer"></div>
+
+    <div id="clarifyPrompt" class="hidden">
+        <p><strong>Clarifying Question:</strong> <span id="clarifyText"></span></p>
+        <textarea id="clarifyResponse" placeholder="Your clarification..."></textarea>
+        <br>
+        <button id="clarifyBtn">Submit Clarification</button>
+    </div>
+
+    <img id="logo" src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
+
+    <script>
+        let conversationHistory = [];
+
+        function getSelectedVolume() {
+            const radios = document.getElementsByName("volume");
+            for (let i = 0; i < radios.length; i++) {
+                if (radios[i].checked) return radios[i].value;
+            }
+            return "1"; // default fallback
+        }
+
+        function showLoadingDots(targetEl) {
+            let dots = 0;
+            return setInterval(() => {
+                dots = (dots + 1) % 4;
+                targetEl.innerText = "Thinking" + ".".repeat(dots);
+            }, 500);
+        }
+
+        async function sendQuery(question, isClarification = false) {
+            const answerDiv = document.getElementById("answer");
+            const clarifyPrompt = document.getElementById("clarifyPrompt");
+            const volume = getSelectedVolume();
+
+            answerDiv.innerHTML = "";
+            clarifyPrompt.classList.add("hidden");
+
+            const loadingInterval = showLoadingDots(answerDiv);
+
+            try {
+                const response = await fetch("/query", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        question: question,
+                        history: conversationHistory,
+                        volume: volume
+                    })
+                });
+
+                clearInterval(loadingInterval);
+
+                const data = await response.json();
+
+                if (data.error) {
+                    answerDiv.innerText = `Error: ${data.error}`;
+                    return;
+                }
+
+                if (data.clarify && data.answer.startsWith("[[CLARIFY]]")) {
+                    const cleanText = data.answer.replace("[[CLARIFY]]", "").trim();
+                    document.getElementById("clarifyText").innerText = cleanText;
+                    clarifyPrompt.classList.remove("hidden");
+
+                    conversationHistory.push({ role: "user", content: question });
+                    conversationHistory.push({ role: "assistant", content: cleanText });
+                } else {
+                    answerDiv.innerText = data.answer;
+
+                    if (!isClarification) {
+                        conversationHistory = [];
+                    }
+                    conversationHistory.push({ role: "user", content: question });
+                    conversationHistory.push({ role: "assistant", content: data.answer });
+                }
+
+            } catch (err) {
+                clearInterval(loadingInterval);
+                answerDiv.innerText = `Request failed: ${err}`;
+            }
+        }
+
+        document.getElementById("submitBtn").addEventListener("click", () => {
+            const q = document.getElementById("question").value.trim();
+            if (q) sendQuery(q);
+        });
+
+        document.getElementById("clarifyBtn").addEventListener("click", () => {
+            const clarification = document.getElementById("clarifyResponse").value.trim();
+            if (clarification) {
+                document.getElementById("clarifyResponse").value = "";
+                sendQuery(clarification, true);
+            }
+        });
+    </script>
+
+    <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.85em; color: #666; background: #f9f9f9; padding: 6px 10px; border-radius: 5px; box-shadow: 0 0 4px rgba(0,0,0,0.1);">
+        v1.1 — Feedback? <a href="mailto:nathan@nbstrategy.co.uk">Email Nathan</a>
+    </div>
+
+</body>
+</html>

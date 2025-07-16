@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Part B Assistant</title>
+</head>
+<body>
+    <h1>Ask a question about Fire Safety (Part B)</h1>
+    <form action="/" method="post">
+        <input type="text" name="question" placeholder="Type your question here" style="width: 300px;">
+        <button type="submit">Ask</button>
+    </form>
+
+    {% if answer %}
+    <hr>
+    <h2>Answer:</h2>
+    <p>{{ answer|safe }}</p>
+    {% endif %}
+</body>
+</html>

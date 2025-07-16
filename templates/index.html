@@ -81,8 +81,8 @@
     <h1>Part B Fire Safety Assistant</h1>
 
     <div class="radio-group">
-        <label><input type="radio" name="volume" value="1" checked> Dwellinghouse (Volume 1)</label>
-        <label><input type="radio" name="volume" value="2"> Other Building (Volume 2)</label>
+        <label><input type="radio" name="building-type" value="volume1" checked> Dwellinghouse (Volume 1)</label>
+        <label><input type="radio" name="building-type" value="volume2"> Other Building (Volume 2)</label>
     </div>
 
     <textarea id="question" placeholder="Ask a fire safety question..."></textarea>
@@ -103,12 +103,12 @@
     <script>
         let conversationHistory = [];
 
-        function getSelectedVolume() {
-            const radios = document.getElementsByName("volume");
+        function getSelectedBuildingType() {
+            const radios = document.getElementsByName("building-type");
             for (let i = 0; i < radios.length; i++) {
                 if (radios[i].checked) return radios[i].value;
             }
-            return "1"; // default fallback
+            return "volume1"; // fallback
         }
 
         function showLoadingDots(targetEl) {
@@ -122,7 +122,7 @@
         async function sendQuery(question, isClarification = false) {
             const answerDiv = document.getElementById("answer");
             const clarifyPrompt = document.getElementById("clarifyPrompt");
-            const volume = getSelectedVolume();
+            const buildingType = getSelectedBuildingType();
 
             answerDiv.innerHTML = "";
             clarifyPrompt.classList.add("hidden");
@@ -138,7 +138,7 @@
                     body: JSON.stringify({
                         question: question,
                         history: conversationHistory,
-                        volume: volume
+                        building_type: buildingType
                     })
                 });
 
@@ -189,8 +189,7 @@
     </script>
 
     <div style="position: fixed; bottom: 10px; right: 10px; font-size: 0.85em; color: #666; background: #f9f9f9; padding: 6px 10px; border-radius: 5px; box-shadow: 0 0 4px rgba(0,0,0,0.1);">
-        v1.1 — Feedback? <a href="mailto:nathan@nbstrategy.co.uk">Email Nathan</a>
+        v1.2 — Feedback? <a href="mailto:nathan@nbstrategy.co.uk">Email Nathan</a>
     </div>
-
 </body>
 </html>
