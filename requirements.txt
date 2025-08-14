@@ -4,3 +4,4 @@ openai
 sentence-transformers
 numpy
 python-dotenv
+Flask-HTTPAuth
