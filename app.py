@@ -1,7 +1,13 @@
+# Part B Fire Safety Assistant — app.py
+# Version: 1.3.0
+# Features: FAISS-based search, volume switch, clarification loop, basic auth (Flask-HTTPAuth)
+
 from dotenv import load_dotenv
 load_dotenv()
 
 from flask import Flask, request, jsonify, render_template
+from flask_httpauth import HTTPBasicAuth
+from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import json
 import pickle
@@ -14,6 +20,19 @@ from openai import OpenAI
 openai_api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=openai_api_key)
 model = SentenceTransformer("all-MiniLM-L6-v2")
+
+# --- Auth setup ---
+auth = HTTPBasicAuth()
+users = {
+    "Admin": generate_password_hash("PBA888"),
+    "NNA": generate_password_hash("NNAtest1"),
+    "FloydSlaski": generate_password_hash("FStest849"),
+}
+
+@auth.verify_password
+def verify_password(username, password):
+    if username in users and check_password_hash(users.get(username), password):
+        return username
 
 # --- Load indexes ---
 def load_index_set(path):
@@ -85,10 +104,12 @@ Otherwise, respond in this structured format:
 
 # --- Routes ---
 @app.route("/")
+@auth.login_required
 def home():
     return render_template("index.html")
 
 @app.route("/query", methods=["POST"])
+@auth.login_required
 def query():
     try:
         data_in = request.get_json()
@@ -116,4 +137,3 @@ def query():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
